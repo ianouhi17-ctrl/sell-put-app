@@ -586,12 +586,11 @@
         });
 
         async function analyzeStock(ticker, strike, expiry, manualPremium) {
-            // 使用CORS代理来避免跨域限制
-            const corsProxy = 'https://api.allorigins.win/raw?url=';
-            const apiUrl = encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=1y');
+            // 使用我们自己的Vercel API函数（绕过CORS）
+            const apiUrl = '/api/stock?ticker=' + encodeURIComponent(ticker);
             
             try {
-                const response = await axios.get(corsProxy + apiUrl, {
+                const response = await axios.get(apiUrl, {
                     timeout: 15000
                 });
 
@@ -641,11 +640,15 @@
                     return { error: '网络请求超时，请检查网络连接后重试' };
                 }
                 
+                if (error.response && error.response.data && error.response.data.error) {
+                    return { error: error.response.data.error };
+                }
+                
                 if (error.message) {
                     return { error: error.message };
                 }
                 
-                return { error: '无法获取 "' + ticker + '" 的数据\n\n可能原因：\n1. 网络连接问题\n2. 股票代码错误\n3. Yahoo Finance暂时不可用\n\n建议：\n- 检查网络连接\n- 确认股票代码正确\n- 稍后重试' };
+                return { error: '无法获取 "' + ticker + '" 的数据\n\n可能原因：\n1. 股票代码错误\n2. Yahoo Finance暂时不可用\n\n建议：确认股票代码正确（如AAPL, TSLA, SPY）' };
             }
         }
 
