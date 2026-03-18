@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Sell Put">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='115' fill='%230a0e1a'/><circle cx='256' cy='256' r='100' fill='%2300ff88'/><text x='256' y='280' font-family='Arial' font-size='80' font-weight='bold' fill='%23000' text-anchor='middle'>SP</text></svg>">
+    <title>Sell Put 决策引擎</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --primary: #00ff88;
+            --secondary: #00d4ff;
+            --warning: #ffd93d;
+            --danger: #ff4d6d;
+            --bg-dark: #0a0e1a;
+            --bg-card: #141824;
+            --bg-input: #1a1f2e;
+            --text-primary: #ffffff;
+            --text-secondary: #8b92a8;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #141824 0%, #1a1f2e 100%);
+            padding: 20px;
+            text-align: center;
+            border-bottom: 2px solid var(--primary);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .container {
+            padding: 15px;
+            max-width: 600px;
+            margin: 0 auto;
+            padding-bottom: 80px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(0, 255, 136, 0.1);
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: var(--primary);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+
+        .card-title::before {
+            content: '';
+            width: 4px;
+            height: 18px;
+            background: var(--primary);
+            margin-right: 10px;
+            border-radius: 2px;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 15px;
+            background: var(--bg-input);
+            border: 2px solid transparent;
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .input-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .input-with-button {
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-with-button .input-field {
+            flex: 1;
+        }
+
+        .btn {
+            padding: 15px 25px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), #00cc70);
+            color: #000;
+            width: 100%;
+        }
+
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+
+        .btn-secondary {
+            background: var(--secondary);
+            color: #000;
+            padding: 15px 20px;
+            font-size: 14px;
+        }
+
+        .btn-secondary:active {
+            transform: scale(0.95);
+        }
+
+        .score-display {
+            text-align: center;
+            padding: 30px 20px;
+        }
+
+        .score-circle {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            margin: 0 auto 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 6px solid var(--primary);
+            background: rgba(0, 255, 136, 0.1);
+        }
+
+        .score-number {
+            font-size: 48px;
+            font-weight: bold;
+            color: var(--primary);
+        }
+
+        .score-total {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 16px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .badge-success {
+            background: rgba(0, 255, 136, 0.2);
+            color: var(--primary);
+            border: 2px solid var(--primary);
+        }
+
+        .badge-info {
+            background: rgba(0, 212, 255, 0.2);
+            color: var(--secondary);
+            border: 2px solid var(--secondary);
+        }
+
+        .badge-warning {
+            background: rgba(255, 217, 61, 0.2);
+            color: var(--warning);
+            border: 2px solid var(--warning);
+        }
+
+        .badge-danger {
+            background: rgba(255, 77, 109, 0.2);
+            color: var(--danger);
+            border: 2px solid var(--danger);
+        }
+
+        .progress-item {
+            margin-bottom: 20px;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        .progress-label {
+            color: var(--text-secondary);
+        }
+
+        .progress-value {
+            font-weight: bold;
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 12px;
+            background: var(--bg-input);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.6s ease;
+        }
+
+        .progress-s { background: var(--primary); }
+        .progress-c { background: #a855f7; }
+        .progress-v { background: var(--secondary); }
+        .progress-p { background: var(--warning); }
+
+        .data-table {
+            width: 100%;
+        }
+
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(139, 146, 168, 0.1);
+        }
+
+        .data-row:last-child {
+            border-bottom: none;
+        }
+
+        .data-label {
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .data-value {
+            color: var(--text-primary);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .tab {
+            padding: 12px 20px;
+            background: var(--bg-card);
+            border: 2px solid transparent;
+            border-radius: 10px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.3s ease;
+        }
+
+        .tab.active {
+            background: rgba(0, 255, 136, 0.1);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px 20px;
+            display: none;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid var(--bg-input);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .toast {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            padding: 15px 25px;
+            border-radius: 10px;
+            border: 2px solid var(--primary);
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            max-width: 90%;
+            white-space: pre-wrap;
+            text-align: left;
+            line-height: 1.5;
+        }
+
+        .toast.error {
+            border-color: var(--danger);
+            background: rgba(255, 77, 109, 0.1);
+        }
+
+        .toast.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">📊 Sell Put 决策引擎</div>
+        <div class="subtitle">支撑位猎手 · Ver 3.0 · 独立版</div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <div class="container">
+        <div class="card">
+            <div class="card-title">交易参数</div>
+            
+            <div class="input-row">
+                <div class="input-group">
+                    <label class="input-label">标的代码</label>
+                    <input type="text" class="input-field" id="ticker" value="AAPL" placeholder="例如: AAPL">
+                </div>
+                <div class="input-group">
+                    <label class="input-label">行权价 ($)</label>
+                    <input type="number" class="input-field" id="strike" value="160" step="0.01" placeholder="160">
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">到期日</label>
+                <input type="date" class="input-field" id="expiry">
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">权利金 ($) - 建议输入真实价格</label>
+                <input type="number" class="input-field" id="premium" step="0.01" placeholder="留空将自动估算">
+            </div>
+
+            <button class="btn btn-primary" id="analyzeBtn">
+                🚀 执行分析
+            </button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <div class="loading-text">正在分析中...</div>
+        </div>
+
+        <div id="results" class="hidden">
+            <div class="tabs">
+                <div class="tab active" data-tab="score">📈 评分详情</div>
+                <div class="tab" data-tab="data">📊 详细数据</div>
+                <div class="tab" data-tab="log">📝 分析日志</div>
+            </div>
+
+            <div class="tab-content active" id="tab-score">
+                <div class="card">
+                    <div class="score-display">
+                        <div class="score-circle" id="scoreCircle">
+                            <div class="score-number" id="scoreNumber">--</div>
+                            <div class="score-total">/100</div>
+                        </div>
+                        <div class="badge badge-success" id="badgeDisplay">评分中...</div>
+                    </div>
+
+                    <div class="progress-item">
+                        <div class="progress-header">
+                            <span class="progress-label">🛡️ S - 支撑位深度 (45%)</span>
+                            <span class="progress-value" id="sScore">0</span>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar progress-s" id="sBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <div class="progress-item">
+                        <div class="progress-header">
+                            <span class="progress-label">💰 C - 接盘性价比 (15%)</span>
+                            <span class="progress-value" id="cScore">0</span>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar progress-c" id="cBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <div class="progress-item">
+                        <div class="progress-header">
+                            <span class="progress-label">📊 V - 波动率套利 (25%)</span>
+                            <span class="progress-value" id="vScore">0</span>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar progress-v" id="vBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <div class="progress-item">
+                        <div class="progress-header">
+                            <span class="progress-label">🎯 P - 统计概率 (15%)</span>
+                            <span class="progress-value" id="pScore">0</span>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar progress-p" id="pBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-data">
+                <div class="card">
+                    <div class="card-title">详细数据</div>
+                    <div class="data-table" id="dataTable"></div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-log">
+                <div class="card">
+                    <div class="card-title">分析日志</div>
+                    <div id="analysisLog" style="font-size: 12px; line-height: 1.6; color: var(--text-secondary); white-space: pre-wrap;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        // Set default expiry date
+        const today = new Date();
+        today.setDate(today.getDate() + 7);
+        document.getElementById('expiry').valueAsDate = today;
+
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                const tabName = this.dataset.tab;
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                document.getElementById('tab-' + tabName).classList.add('active');
+            });
+        });
+
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show' + (isError ? ' error' : '');
+            setTimeout(() => toast.classList.remove('show'), isError ? 5000 : 3000);
+        }
+
+        // Analyze button - 完全客户端计算，无需服务器
+        document.getElementById('analyzeBtn').addEventListener('click', async function() {
+            const ticker = document.getElementById('ticker').value.toUpperCase().trim();
+            const strike = parseFloat(document.getElementById('strike').value);
+            const expiry = document.getElementById('expiry').value;
+            const premium = document.getElementById('premium').value ? parseFloat(document.getElementById('premium').value) : null;
+
+            if (!ticker || !strike || !expiry) {
+                showToast('⚠️ 请填写完整信息');
+                return;
+            }
+
+            document.getElementById('loading').classList.add('show');
+            document.getElementById('results').classList.add('hidden');
+
+            try {
+                // 使用Yahoo Finance API获取数据
+                const result = await analyzeStock(ticker, strike, expiry, premium);
+                
+                if (result.error) {
+                    showToast(result.error, true);
+                    document.getElementById('loading').classList.remove('show');
+                    return;
+                }
+
+                displayResults(result);
+                document.getElementById('loading').classList.remove('show');
+                document.getElementById('results').classList.remove('hidden');
+                document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+                
+            } catch (error) {
+                showToast('分析失败: ' + error.message, true);
+                document.getElementById('loading').classList.remove('show');
+            }
+        });
+
+        async function analyzeStock(ticker, strike, expiry, manualPremium) {
+            // 使用CORS代理来避免跨域限制
+            const corsProxy = 'https://api.allorigins.win/raw?url=';
+            const apiUrl = encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=1y');
+            
+            try {
+                const response = await axios.get(corsProxy + apiUrl, {
+                    timeout: 15000
+                });
+
+                const data = response.data.chart.result[0];
+                
+                if (!data || !data.indicators || !data.indicators.quote || !data.indicators.quote[0]) {
+                    throw new Error('无法获取' + ticker + '的历史数据');
+                }
+
+                const quotes = data.indicators.quote[0];
+                const timestamps = data.timestamp;
+                
+                if (!timestamps || timestamps.length === 0) {
+                    throw new Error(ticker + '没有可用的历史数据');
+                }
+                
+                const hist = timestamps.map((ts, i) => ({
+                    date: new Date(ts * 1000),
+                    close: quotes.close[i],
+                    high: quotes.high[i],
+                    low: quotes.low[i],
+                    volume: quotes.volume[i]
+                })).filter(d => d.close !== null && !isNaN(d.close));
+
+                if (hist.length === 0) {
+                    throw new Error(ticker + '的历史数据无效');
+                }
+
+                const currentPrice = hist[hist.length - 1].close;
+                
+                if (!currentPrice || currentPrice <= 0) {
+                    throw new Error(ticker + '的当前价格无效');
+                }
+
+                const daysToExpiry = Math.floor((new Date(expiry) - new Date()) / (1000 * 60 * 60 * 24));
+
+                if (daysToExpiry < 0) {
+                    throw new Error('到期日不能是过去的日期');
+                }
+
+                return performAnalysis(hist, currentPrice, strike, daysToExpiry, manualPremium, ticker);
+
+            } catch (error) {
+                console.error('获取数据错误:', error);
+                
+                if (error.code === 'ECONNABORTED') {
+                    return { error: '网络请求超时，请检查网络连接后重试' };
+                }
+                
+                if (error.message) {
+                    return { error: error.message };
+                }
+                
+                return { error: '无法获取 "' + ticker + '" 的数据\n\n可能原因：\n1. 网络连接问题\n2. 股票代码错误\n3. Yahoo Finance暂时不可用\n\n建议：\n- 检查网络连接\n- 确认股票代码正确\n- 稍后重试' };
+            }
+        }
+
+        function performAnalysis(hist, currentPrice, strike, daysToExpiry, manualPremium, ticker) {
+            let log = '';
+            
+            // 支撑位识别
+            const support = identifySupport(hist, currentPrice);
+            log += `=== 支撑位扫描 ===\n`;
+            log += `52周最低: $${support.yearLow.toFixed(2)}\n`;
+            log += `MA200: $${support.ma200.toFixed(2)}\n`;
+            log += `MA50: $${support.ma50.toFixed(2)}\n\n`;
+
+            // S因子
+            const sResult = calculateS(strike, support, currentPrice);
+            log += `【S因子】支撑位深度 (45%)\n`;
+            log += `评分: ${sResult.score}/100\n`;
+            log += `理由: ${sResult.reason}\n\n`;
+
+            // C因子
+            const cResult = calculateC(strike, currentPrice, daysToExpiry, hist, manualPremium);
+            log += `【C因子】接盘性价比 (15%)\n`;
+            log += `权利金: $${cResult.premium.toFixed(2)} (${cResult.source})\n`;
+            log += `接盘成本: $${cResult.cost.toFixed(2)}\n`;
+            log += `评分: ${cResult.score}/100\n\n`;
+
+            // V因子
+            const vResult = calculateV(hist);
+            log += `【V因子】波动率套利 (25%)\n`;
+            log += `RSI: ${vResult.rsi.toFixed(2)}\n`;
+            log += `评分: ${vResult.score}/100\n\n`;
+
+            // P因子
+            const pResult = calculateP(currentPrice, strike, daysToExpiry, hist);
+            log += `【P因子】统计概率 (15%)\n`;
+            log += `Delta: ${pResult.delta.toFixed(4)}\n`;
+            log += `行权概率: ${pResult.assignProb.toFixed(2)}%\n`;
+            log += `评分: ${pResult.score}/100\n\n`;
+
+            // 综合评分
+            const totalScore = sResult.score * 0.45 + cResult.score * 0.15 + vResult.score * 0.25 + pResult.score * 0.15;
+            
+            log += `=== 综合评分 ===\n`;
+            log += `总分: ${totalScore.toFixed(1)}/100\n`;
+
+            // 决策徽章
+            let badge, color;
+            if (totalScore >= 80 && cResult.score >= 80) {
+                badge = '优质收租/接盘点';
+                color = 'success';
+            } else if (totalScore >= 80 && pResult.score >= 80) {
+                badge = '高胜率避险';
+                color = 'info';
+            } else if (totalScore >= 75) {
+                badge = '推荐';
+                color = 'info';
+            } else if (totalScore >= 50) {
+                badge = '谨慎尝试';
+                color = 'warning';
+            } else {
+                badge = '风险极大';
+                color = 'danger';
+            }
+
+            return {
+                total_score: totalScore,
+                s_score: sResult.score,
+                c_score: cResult.score,
+                v_score: vResult.score,
+                p_score: pResult.score,
+                badge: badge,
+                color: color,
+                current_price: currentPrice,
+                support: sResult.supportLevel,
+                premium: cResult.premium,
+                premium_source: cResult.source,
+                cost: cResult.cost,
+                cost_advantage: ((currentPrice - cResult.cost) / currentPrice * 100),
+                rsi: vResult.rsi,
+                delta: pResult.delta,
+                assign_prob: pResult.assignProb,
+                days_to_expiry: daysToExpiry,
+                ticker: ticker,
+                strike: strike,
+                log: log
+            };
+        }
+
+        function identifySupport(hist) {
+            const closes = hist.map(d => d.close);
+            const lows = hist.map(d => d.low);
+            
+            const yearLow = Math.min(...lows);
+            const ma200 = closes.slice(-200).reduce((a,b) => a+b, 0) / Math.min(200, closes.length);
+            const ma50 = closes.slice(-50).reduce((a,b) => a+b, 0) / Math.min(50, closes.length);
+            
+            return { yearLow, ma200, ma50 };
+        }
+
+        function calculateS(strike, support, currentPrice) {
+            if (strike <= support.yearLow) {
+                return { score: 100, reason: '行权价≤52周低点', supportLevel: `52周低点 $${support.yearLow.toFixed(2)}` };
+            } else if (strike <= support.ma200) {
+                return { score: 80, reason: '行权价≤MA200', supportLevel: `MA200 $${support.ma200.toFixed(2)}` };
+            } else if (strike <= support.ma50) {
+                return { score: 60, reason: '行权价≤MA50', supportLevel: `MA50 $${support.ma50.toFixed(2)}` };
+            } else {
+                const otm = (currentPrice - strike) / currentPrice;
+                const score = otm >= 0.15 ? 40 : otm >= 0.10 ? 30 : 20;
+                return { score, reason: '无明确支撑', supportLevel: '无' };
+            }
+        }
+
+        function calculateC(strike, currentPrice, days, hist, manualPremium) {
+            let premium, source;
+            
+            if (manualPremium && manualPremium > 0) {
+                premium = manualPremium;
+                source = '真实价格(手动输入)';
+            } else {
+                // Black-Scholes估算
+                const closes = hist.map(d => d.close);
+                const returns = closes.slice(1).map((p, i) => Math.log(p / closes[i]));
+                const vol = Math.sqrt(returns.reduce((a,b) => a + b*b, 0) / returns.length * 252);
+                const timeExp = days / 365;
+                
+                const intrinsic = Math.max(strike - currentPrice, 0);
+                const timeValue = currentPrice * vol * Math.sqrt(timeExp) * 0.4;
+                premium = intrinsic + timeValue;
+                source = 'Black-Scholes估算';
+            }
+            
+            const cost = strike - premium;
+            const costRatio = cost / currentPrice;
+            
+            let score;
+            if (costRatio <= 0.85) score = 100;
+            else if (costRatio <= 0.92) score = 70;
+            else if (costRatio <= 1.0) score = 50;
+            else score = 30;
+            
+            return { score, premium, source, cost };
+        }
+
+        function calculateV(hist) {
+            const closes = hist.map(d => d.close);
+            const period = 14;
+            
+            let gains = 0, losses = 0;
+            for (let i = closes.length - period; i < closes.length - 1; i++) {
+                const change = closes[i+1] - closes[i];
+                if (change > 0) gains += change;
+                else losses -= change;
+            }
+            
+            const avgGain = gains / period;
+            const avgLoss = losses / period;
+            const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+            const rsi = 100 - (100 / (1 + rs));
+            
+            let score;
+            if (rsi <= 35) score = 100;
+            else if (rsi <= 50) score = 70;
+            else score = 30;
+            
+            return { score, rsi };
+        }
+
+        function calculateP(currentPrice, strike, days, hist) {
+            const closes = hist.map(d => d.close);
+            const returns = closes.slice(1).map((p, i) => Math.log(p / closes[i]));
+            const vol = Math.sqrt(returns.reduce((a,b) => a + b*b, 0) / returns.length * 252);
+            const timeExp = days / 365;
+            
+            let delta, assignProb;
+            if (timeExp > 0 && vol > 0) {
+                const d1 = (Math.log(currentPrice/strike) + (0.02 + 0.5*vol*vol)*timeExp) / (vol*Math.sqrt(timeExp));
+                delta = Math.abs(normCDF(d1) - 1);
+                assignProb = delta * 100;
+            } else {
+                delta = 0.50;
+                assignProb = 50;
+            }
+            
+            let score;
+            if (delta <= 0.15) score = 100;
+            else if (delta <= 0.30) score = 100 - ((delta - 0.15) / 0.15) * 80;
+            else score = 20;
+            
+            return { score, delta, assignProb };
+        }
+
+        function normCDF(x) {
+            const t = 1 / (1 + 0.2316419 * Math.abs(x));
+            const d = 0.3989423 * Math.exp(-x * x / 2);
+            const prob = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+            return x > 0 ? 1 - prob : prob;
+        }
+
+        function displayResults(data) {
+            const scoreCircle = document.getElementById('scoreCircle');
+            const scoreNumber = document.getElementById('scoreNumber');
+            scoreNumber.textContent = Math.round(data.total_score);
+            
+            const colorMap = {
+                'success': '--primary',
+                'info': '--secondary',
+                'warning': '--warning',
+                'danger': '--danger'
+            };
+            
+            const borderColor = `var(${colorMap[data.color]})`;
+            scoreCircle.style.borderColor = borderColor;
+            scoreNumber.style.color = borderColor;
+
+            const badge = document.getElementById('badgeDisplay');
+            badge.textContent = data.badge;
+            badge.className = 'badge badge-' + data.color;
+
+            updateProgress('s', data.s_score);
+            updateProgress('c', data.c_score);
+            updateProgress('v', data.v_score);
+            updateProgress('p', data.p_score);
+
+            const dataTable = document.getElementById('dataTable');
+            dataTable.innerHTML = `
+                <div class="data-row"><span class="data-label">标的代码</span><span class="data-value">${data.ticker}</span></div>
+                <div class="data-row"><span class="data-label">当前价格</span><span class="data-value">$${data.current_price.toFixed(2)}</span></div>
+                <div class="data-row"><span class="data-label">行权价格</span><span class="data-value">$${data.strike.toFixed(2)}</span></div>
+                <div class="data-row"><span class="data-label">到期天数</span><span class="data-value">${data.days_to_expiry}天</span></div>
+                <div class="data-row"><span class="data-label">最近支撑位</span><span class="data-value">${data.support}</span></div>
+                <div class="data-row"><span class="data-label">权利金</span><span class="data-value">$${data.premium.toFixed(2)}</span></div>
+                <div class="data-row"><span class="data-label">权利金来源</span><span class="data-value">${data.premium_source}</span></div>
+                <div class="data-row"><span class="data-label">实际接盘成本</span><span class="data-value">$${data.cost.toFixed(2)}</span></div>
+                <div class="data-row"><span class="data-label">成本优势</span><span class="data-value">${data.cost_advantage.toFixed(1)}%</span></div>
+                <div class="data-row"><span class="data-label">RSI</span><span class="data-value">${data.rsi.toFixed(2)}</span></div>
+                <div class="data-row"><span class="data-label">Delta</span><span class="data-value">${data.delta.toFixed(4)}</span></div>
+                <div class="data-row"><span class="data-label">被行权概率</span><span class="data-value">${data.assign_prob.toFixed(2)}%</span></div>
+            `;
+
+            document.getElementById('analysisLog').textContent = data.log;
+        }
+
+        function updateProgress(factor, score) {
+            document.getElementById(factor + 'Score').textContent = Math.round(score);
+            document.getElementById(factor + 'Bar').style.width = score + '%';
+        }
+    </script>
+</body>
+</html>
